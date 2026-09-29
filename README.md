@@ -2,6 +2,8 @@
 
 A calm, minimal todo list web app built for the **HNG Internship, Stage 1** task.
 
+**Live demo:** [hng-todo-app-psi.vercel.app](https://hng-todo-app-psi.vercel.app/)
+
 Tasks are organised into three sections, **Today**, **Tomorrow** and **Later**. They sit side by side on desktop and stack on mobile. Everything is saved in your browser, so your list is still there after you refresh.
 
 ## Features
