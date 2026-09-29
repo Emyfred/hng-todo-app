@@ -1,0 +1,1205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Planner: Today, Tomorrow, Later</title>
+  <meta name="description" content="A calm todo list that sorts your tasks into Today, Tomorrow and Later.">
+
+  <!-- Font: Plus Jakarta Sans from Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    /* =========================================================
+       1. DESIGN TOKENS
+       Every colour and size lives here, so the whole look can be
+       changed in one place. Contrast ratios are noted next to
+       text colours (WCAG AA needs 4.5:1 for normal text).
+       ========================================================= */
+    :root {
+      color-scheme: light;
+
+      /* Neutrals */
+      --bg: #F4F5F7;            /* page background (soft light grey) */
+      --surface: #FFFFFF;       /* task cards */
+      --surface-done: #FBFBFC;  /* completed task cards */
+      --border: #E4E7EB;        /* very subtle card border */
+      --border-strong: #D3D8DE; /* inputs, empty-state outline */
+      --hover: #F1F3F5;         /* neutral hover fill */
+      --pill: #E8EBEE;          /* count pills + filter track */
+
+      --text: #16191D;          /* near-black, 17.6:1 on white */
+      --text-muted: #5A616B;    /* meta + tags, 6.3:1 on white, 5.7:1 on bg */
+      --text-done: #6A717A;     /* completed tasks, 5.0:1 on white */
+      --control: #868D96;       /* checkbox outline, 3.3:1 (non-text needs 3:1) */
+      --focus: #16191D;         /* keyboard focus ring */
+
+      /* The ONE accent colour, used only for actions */
+      --accent: #3A7456;        /* muted green, white text on it = 5.5:1 */
+      --accent-hover: #2F6247;
+
+      /* Tag dots (decorative; the label text carries the meaning) */
+      --tag-work: #5B7DB1;
+      --tag-personal: #C0707E;
+      --tag-learning: #C49A3A;
+      --tag-errands: #8C79B6;
+
+      /* Type scale: clear jump between headings and task text */
+      --fs-title: 2rem;         /* 32px page title */
+      --fs-section: 1.125rem;   /* 18px section headers */
+      --fs-task: 0.9375rem;     /* 15px task text */
+      --fs-meta: 0.8125rem;     /* 13px tags, counts, labels */
+
+      --radius: 12px;
+      --radius-sm: 9px;
+      --tap: 40px;              /* minimum button size (44px on touch) */
+    }
+
+    @media (pointer: coarse) {
+      :root { --tap: 44px; }
+    }
+
+    /* =========================================================
+       2. BASE
+       ========================================================= */
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+      font-size: 16px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    h1, h2, p { margin: 0; }
+    ul { list-style: none; margin: 0; padding: 0; }
+    button, input, select { font: inherit; color: inherit; }
+    button { cursor: pointer; }
+    [hidden] { display: none !important; }
+
+    /* Visible focus ring for keyboard users only */
+    :focus-visible {
+      outline: 2px solid var(--focus);
+      outline-offset: 2px;
+      border-radius: 6px;
+    }
+
+    /* Text only screen readers can "see" */
+    .sr-only {
+      position: absolute;
+      width: 1px; height: 1px;
+      padding: 0; margin: -1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    /* =========================================================
+       3. PAGE LAYOUT
+       ========================================================= */
+    .page {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 40px 16px 64px;
+    }
+
+    .page-header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 20px 32px;
+      margin-bottom: 40px;
+    }
+
+    .eyebrow {
+      font-size: var(--fs-meta);
+      font-weight: 500;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+
+    h1 {
+      font-size: var(--fs-title);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+    }
+
+    .summary {
+      margin-top: 8px;
+      font-size: var(--fs-task);
+      color: var(--text-muted);
+    }
+
+    /* Filter: segmented control (neutral, not accent) */
+    .filters {
+      display: inline-flex;
+      gap: 4px;
+      padding: 4px;
+      background: var(--pill);
+      border-radius: var(--radius);
+    }
+
+    .filter-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: calc(var(--tap) - 4px);
+      padding: 0 14px;
+      border: 1px solid transparent;
+      border-radius: var(--radius-sm);
+      background: transparent;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #454C55;
+    }
+
+    .filter-btn:hover { color: var(--text); }
+
+    .filter-btn[aria-pressed="true"] {
+      background: var(--surface);
+      border-color: var(--border);
+      color: var(--text);
+    }
+
+    .filter-count {
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+
+    /* The three columns: stacked on phones, side by side on desktop */
+    .board {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 40px;
+    }
+
+    @media (min-width: 900px) {
+      .page { padding: 56px 40px 80px; }
+      .page-header { margin-bottom: 48px; }
+      .board {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 28px;
+        align-items: start;
+      }
+    }
+
+    /* =========================================================
+       4. SECTIONS (Today / Tomorrow / Later)
+       ========================================================= */
+    .column { min-width: 0; }
+
+    .column-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 4px 14px;
+    }
+
+    h2 {
+      font-size: var(--fs-section);
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+
+    .count {
+      min-width: 24px;
+      padding: 1px 8px;
+      border-radius: 999px;
+      background: var(--pill);
+      color: #454C55;               /* 7.1:1 on the pill */
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-align: center;
+    }
+
+    .task-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .empty-state {
+      padding: 22px 16px;
+      border: 1px dashed var(--border-strong);
+      border-radius: var(--radius);
+      color: var(--text-muted);
+      font-size: var(--fs-task);
+      text-align: center;
+    }
+
+    /* "+ Add task" button at the bottom of each section */
+    .add-trigger {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      min-height: var(--tap);
+      margin-top: 8px;
+      padding: 8px 12px;
+      border: 1px solid transparent;
+      border-radius: var(--radius);
+      background: transparent;
+      color: var(--accent);         /* 5.0:1 on the grey page */
+      font-size: var(--fs-task);
+      font-weight: 600;
+      text-align: left;
+      transition: background-color .15s, border-color .15s;
+    }
+
+    .add-trigger:hover {
+      background: var(--surface);
+      border-color: var(--border);
+      color: var(--accent-hover);
+    }
+
+    .add-trigger svg { flex: none; }
+
+    /* =========================================================
+       5. TASK CARD
+       ========================================================= */
+    .task {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 14px 10px 14px 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      transition: background-color .2s;
+    }
+
+    /* Custom checkbox. The label is bigger than the box so it is easy to tap. */
+    .check {
+      position: relative;
+      flex: none;
+      display: grid;
+      place-items: center;
+      width: 22px;
+      height: 22px;
+      cursor: pointer;
+    }
+
+    .check::before {                /* invisible, larger tap area */
+      content: "";
+      position: absolute;
+      inset: -11px;
+    }
+
+    .task-check {
+      appearance: none;
+      -webkit-appearance: none;
+      display: grid;
+      place-items: center;
+      width: 20px;
+      height: 20px;
+      margin: 0;
+      border: 1.5px solid var(--control);
+      border-radius: 6px;
+      background: var(--surface);
+      cursor: pointer;
+      transition: background-color .15s, border-color .15s;
+    }
+
+    .task-check::after {            /* the tick mark */
+      content: "";
+      width: 10px;
+      height: 5px;
+      border-left: 2px solid #fff;
+      border-bottom: 2px solid #fff;
+      transform: translateY(-1px) rotate(-45deg) scale(0);
+      transition: transform .15s;
+    }
+
+    .task-check:hover { border-color: var(--text-muted); }
+
+    .task-check:checked {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .task-check:checked::after {
+      transform: translateY(-1px) rotate(-45deg) scale(1);
+    }
+
+    .task-body {
+      flex: 1;
+      min-width: 0;
+      padding-top: 1px;
+    }
+
+    .task-title {
+      font-size: var(--fs-task);
+      font-weight: 500;
+      line-height: 1.4;
+      overflow-wrap: anywhere;
+    }
+
+    .task-meta {
+      margin-top: 6px;
+      font-size: var(--fs-meta);
+      color: var(--text-muted);
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .tag-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex: none;
+    }
+
+    .tag-dot[data-tag="work"]     { background: var(--tag-work); }
+    .tag-dot[data-tag="personal"] { background: var(--tag-personal); }
+    .tag-dot[data-tag="learning"] { background: var(--tag-learning); }
+    .tag-dot[data-tag="errands"]  { background: var(--tag-errands); }
+
+    .task-actions {
+      display: flex;
+      gap: 2px;
+      margin: -8px 0 -8px auto;
+    }
+
+    .icon-btn {
+      display: grid;
+      place-items: center;
+      width: var(--tap);
+      height: var(--tap);
+      border: 0;
+      border-radius: var(--radius-sm);
+      background: transparent;
+      color: var(--text-muted);
+      transition: background-color .15s, color .15s, opacity .15s;
+    }
+
+    .icon-btn:hover { background: var(--hover); color: var(--text); }
+
+    /* On desktop, keep cards calm: show edit/delete on hover or keyboard focus */
+    @media (hover: hover) and (pointer: fine) {
+      .task .icon-btn { opacity: 0; }
+      .task:hover .icon-btn,
+      .task:focus-within .icon-btn { opacity: 1; }
+    }
+
+    /* Completed tasks: faded + strikethrough (still readable) */
+    .task.is-done { background: var(--surface-done); }
+
+    .task.is-done .task-title {
+      color: var(--text-done);
+      text-decoration: line-through;
+      text-decoration-thickness: 1px;
+    }
+
+    .task.is-done .tag-dot { opacity: 0.5; }
+
+    /* Inline edit field */
+    .edit-input {
+      width: 100%;
+      margin: -5px 0 -5px -8px;
+      padding: 4px 8px;
+      border: 1px solid var(--border-strong);
+      border-radius: 8px;
+      background: var(--surface);
+      font-size: var(--fs-task);
+      font-weight: 500;
+      line-height: 1.4;
+    }
+
+    .edit-input:focus { outline: 2px solid var(--focus); outline-offset: 0; }
+
+    /* =========================================================
+       6. BUTTONS
+       ========================================================= */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: var(--tap);
+      padding: 0 16px;
+      border: 1px solid transparent;
+      border-radius: var(--radius-sm);
+      font-size: 0.875rem;
+      font-weight: 600;
+      transition: background-color .15s;
+    }
+
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: var(--accent-hover); }
+
+    .btn-ghost { background: transparent; color: #454C55; }
+    .btn-ghost:hover { background: var(--hover); color: var(--text); }
+
+    .btn-small { min-height: 32px; padding: 0 12px; }
+
+    /* =========================================================
+       7. ADD-TASK FORM ("composer")
+       ========================================================= */
+    .composer {
+      margin-top: 8px;
+      padding: 14px;
+      background: var(--surface);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius);
+    }
+
+    .composer-input {
+      width: 100%;
+      padding: 6px 4px;
+      border: 0;
+      background: transparent;
+      font-size: var(--fs-task);
+      font-weight: 500;
+    }
+
+    .composer-input:focus { outline: none; }
+    .composer-input::placeholder,
+    .edit-input::placeholder { color: var(--text-done); }
+
+    .composer-error {
+      padding: 0 4px;
+      font-size: var(--fs-meta);
+      color: #A33A3A;               /* 6.2:1 on white */
+    }
+
+    .composer-options {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      margin-top: 12px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border);
+    }
+
+    .field { margin: 0; padding: 0; border: 0; min-width: 0; }
+
+    .field-label {
+      display: block;
+      margin-bottom: 6px;
+      padding: 0;
+      font-size: var(--fs-meta);
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .select {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 100%;
+      min-height: var(--tap);
+      padding: 0 36px 0 12px;
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-sm);
+      background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235A616B' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 12px center;
+      font-size: 0.875rem;
+      font-weight: 500;
+    }
+
+    .tag-picker {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .tag-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 32px;
+      padding: 0 12px;
+      border: 1px solid var(--border-strong);
+      border-radius: 999px;
+      background: var(--surface);
+      font-size: var(--fs-meta);
+      font-weight: 500;
+      color: #454C55;
+    }
+
+    @media (pointer: coarse) {
+      .tag-chip { min-height: 40px; }
+    }
+
+    .tag-chip:hover { background: var(--hover); }
+
+    .tag-chip[aria-pressed="true"] {
+      border-color: var(--text);
+      background: var(--hover);
+      color: var(--text);
+    }
+
+    .composer-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 16px;
+    }
+
+    /* Respect users who prefer less motion */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+
+    <!-- ========== Header: date, title, tasks left, filter ========== -->
+    <header class="page-header">
+      <div>
+        <p class="eyebrow" id="today-date"></p>
+        <h1>My tasks</h1>
+        <p class="summary" id="summary" aria-live="polite"></p>
+      </div>
+
+      <div class="filters" role="group" aria-label="Filter tasks">
+        <button type="button" class="filter-btn" data-filter="all" aria-pressed="true">
+          All <span class="filter-count" data-count="all">0</span>
+        </button>
+        <button type="button" class="filter-btn" data-filter="todo" aria-pressed="false">
+          To do <span class="filter-count" data-count="todo">0</span>
+        </button>
+        <button type="button" class="filter-btn" data-filter="done" aria-pressed="false">
+          Done <span class="filter-count" data-count="done">0</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- ========== The three sections ========== -->
+    <div class="board" id="board">
+
+      <section class="column" data-section="today" aria-labelledby="heading-today">
+        <header class="column-header">
+          <h2 id="heading-today">Today</h2>
+          <span class="count"><span class="count-num">0</span><span class="sr-only"> tasks shown</span></span>
+        </header>
+        <ul class="task-list" aria-labelledby="heading-today"></ul>
+        <p class="empty-state"></p>
+        <div class="composer-slot"></div>
+        <button type="button" class="add-trigger" data-action="open-composer">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          Add task
+        </button>
+      </section>
+
+      <section class="column" data-section="tomorrow" aria-labelledby="heading-tomorrow">
+        <header class="column-header">
+          <h2 id="heading-tomorrow">Tomorrow</h2>
+          <span class="count"><span class="count-num">0</span><span class="sr-only"> tasks shown</span></span>
+        </header>
+        <ul class="task-list" aria-labelledby="heading-tomorrow"></ul>
+        <p class="empty-state"></p>
+        <div class="composer-slot"></div>
+        <button type="button" class="add-trigger" data-action="open-composer">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          Add task
+        </button>
+      </section>
+
+      <section class="column" data-section="later" aria-labelledby="heading-later">
+        <header class="column-header">
+          <h2 id="heading-later">Later</h2>
+          <span class="count"><span class="count-num">0</span><span class="sr-only"> tasks shown</span></span>
+        </header>
+        <ul class="task-list" aria-labelledby="heading-later"></ul>
+        <p class="empty-state"></p>
+        <div class="composer-slot"></div>
+        <button type="button" class="add-trigger" data-action="open-composer">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          Add task
+        </button>
+      </section>
+
+    </div>
+
+    <!-- Screen readers hear short messages placed in here -->
+    <p class="sr-only" id="announcer" aria-live="polite"></p>
+  </main>
+
+  <!-- The add-task form. JavaScript copies it into each section. -->
+  <template id="composer-template">
+    <form class="composer" novalidate hidden>
+      <label class="sr-only" data-for="text">Task name</label>
+      <input class="composer-input" type="text" name="text" placeholder="What needs doing?" autocomplete="off" maxlength="200">
+      <p class="composer-error" hidden>Type a task first.</p>
+
+      <div class="composer-options">
+        <div class="field">
+          <label class="field-label" data-for="section">Section</label>
+          <select class="select" name="section">
+            <option value="today">Today</option>
+            <option value="tomorrow">Tomorrow</option>
+            <option value="later">Later</option>
+          </select>
+        </div>
+
+        <fieldset class="field">
+          <legend class="field-label">Tag (optional)</legend>
+          <div class="tag-picker"></div>
+        </fieldset>
+      </div>
+
+      <div class="composer-actions">
+        <button type="button" class="btn btn-ghost" data-action="cancel">Cancel</button>
+        <button type="submit" class="btn btn-primary">Add</button>
+      </div>
+    </form>
+  </template>
+
+  <script>
+  (function () {
+    'use strict';
+
+    /* =========================================================
+       1. SETTINGS
+       ========================================================= */
+    const STORAGE_KEY = 'hng-todo.tasks.v1';
+    const FILTER_KEY = 'hng-todo.filter.v1';
+
+    const SECTIONS = {
+      today:    { name: 'Today',    empty: 'Nothing planned for today yet.' },
+      tomorrow: { name: 'Tomorrow', empty: 'Nothing planned for tomorrow yet.' },
+      later:    { name: 'Later',    empty: 'Nothing saved for later yet.' }
+    };
+
+    const TAGS = {
+      work: 'Work',
+      personal: 'Personal',
+      learning: 'Learning',
+      errands: 'Errands'
+    };
+
+    const FILTERS = ['all', 'todo', 'done'];
+
+    const ICONS = {
+      edit: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>',
+      trash: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>'
+    };
+
+    /* =========================================================
+       2. STATE: the single source of truth.
+       We change these variables, then call render() to redraw.
+       ========================================================= */
+    let tasks = loadTasks();
+    let filter = loadFilter();
+    let editingId = null;
+
+    /* =========================================================
+       3. SAVING & LOADING (localStorage)
+       Wrapped in try/catch because storage can be blocked
+       (e.g. some private-browsing modes). The app still works.
+       ========================================================= */
+    function loadTasks() {
+      try {
+        const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+        if (!Array.isArray(data)) return [];
+        return data
+          .filter(t => t && typeof t.id === 'string' && typeof t.text === 'string' && SECTIONS[t.section])
+          .map(t => ({
+            id: t.id,
+            text: t.text,
+            done: Boolean(t.done),
+            section: t.section,
+            tag: TAGS[t.tag] ? t.tag : null,
+            createdAt: Number(t.createdAt) || 0
+          }));
+      } catch (err) {
+        return [];
+      }
+    }
+
+    function saveTasks() {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks)); } catch (err) { /* storage unavailable */ }
+    }
+
+    function loadFilter() {
+      try {
+        const saved = localStorage.getItem(FILTER_KEY);
+        return FILTERS.includes(saved) ? saved : 'all';
+      } catch (err) {
+        return 'all';
+      }
+    }
+
+    function saveFilter() {
+      try { localStorage.setItem(FILTER_KEY, filter); } catch (err) { /* storage unavailable */ }
+    }
+
+    /* =========================================================
+       4. TASK ACTIONS: change the data, then save it.
+       ========================================================= */
+    function makeId() {
+      if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+      return Date.now().toString(36) + Math.random().toString(36).slice(2);
+    }
+
+    function findTask(id) {
+      return tasks.find(t => t.id === id);
+    }
+
+    function addTask(text, section, tag) {
+      const task = { id: makeId(), text, done: false, section, tag, createdAt: Date.now() };
+      tasks.push(task);
+      saveTasks();
+      return task;
+    }
+
+    function toggleTask(id) {
+      const task = findTask(id);
+      if (!task) return;
+      task.done = !task.done;
+      saveTasks();
+    }
+
+    function updateTaskText(id, text) {
+      const task = findTask(id);
+      if (!task) return;
+      task.text = text;
+      saveTasks();
+    }
+
+    function deleteTask(id) {
+      tasks = tasks.filter(t => t.id !== id);
+      saveTasks();
+    }
+
+    /* =========================================================
+       5. HELPERS
+       ========================================================= */
+    // Create an element. We use textContent (never innerHTML) for
+    // anything the user typed, so typed HTML can't break the page.
+    function el(tag, className, text) {
+      const node = document.createElement(tag);
+      if (className) node.className = className;
+      if (text !== undefined) node.textContent = text;
+      return node;
+    }
+
+    function matchesFilter(task) {
+      if (filter === 'todo') return !task.done;
+      if (filter === 'done') return task.done;
+      return true;
+    }
+
+    // Unfinished first (oldest at top), completed tasks sink to the bottom.
+    function sortTasks(list) {
+      return list.slice().sort((a, b) => (a.done - b.done) || (a.createdAt - b.createdAt));
+    }
+
+    function plural(n, word) {
+      return n + ' ' + word + (n === 1 ? '' : 's');
+    }
+
+    function announce(message) {
+      const region = document.getElementById('announcer');
+      region.textContent = '';
+      // Small delay so screen readers notice the change
+      setTimeout(() => { region.textContent = message; }, 50);
+    }
+
+    function columnFor(sectionId) {
+      return document.querySelector('.column[data-section="' + sectionId + '"]');
+    }
+
+    /* =========================================================
+       6. RENDER: redraw the lists from the current state.
+       ========================================================= */
+    function render() {
+      Object.keys(SECTIONS).forEach(sectionId => {
+        const column = columnFor(sectionId);
+        const inSection = tasks.filter(t => t.section === sectionId);
+        const visible = sortTasks(inSection.filter(matchesFilter));
+
+        column.querySelector('.task-list').replaceChildren(...visible.map(createTaskItem));
+        column.querySelector('.count-num').textContent = visible.length;
+
+        const empty = column.querySelector('.empty-state');
+        empty.hidden = visible.length > 0;
+        empty.textContent = emptyMessage(sectionId, inSection);
+      });
+
+      // Filter buttons + their counts
+      const doneCount = tasks.filter(t => t.done).length;
+      const counts = { all: tasks.length, todo: tasks.length - doneCount, done: doneCount };
+      document.querySelectorAll('[data-filter]').forEach(btn => {
+        btn.setAttribute('aria-pressed', String(btn.dataset.filter === filter));
+      });
+      document.querySelectorAll('[data-count]').forEach(span => {
+        span.textContent = counts[span.dataset.count];
+      });
+
+      // "X tasks left" summary
+      const summary = document.getElementById('summary');
+      if (tasks.length === 0) {
+        summary.textContent = 'No tasks yet. Add one to get started.';
+      } else if (counts.todo === 0) {
+        summary.textContent = 'All done. Enjoy the calm.';
+      } else {
+        summary.textContent = plural(counts.todo, 'task') + ' left';
+      }
+
+      // If a task is being edited, put the cursor in its text box
+      if (editingId) {
+        const input = document.querySelector('.task[data-id="' + editingId + '"] .edit-input');
+        if (input) {
+          input.focus();
+          input.setSelectionRange(input.value.length, input.value.length);
+        }
+      }
+    }
+
+    function emptyMessage(sectionId, inSection) {
+      if (inSection.length === 0) return SECTIONS[sectionId].empty;
+      if (filter === 'todo') return 'All done here. Nice work.';
+      if (filter === 'done') return 'Nothing completed here yet.';
+      return '';
+    }
+
+    // Build one task card
+    function createTaskItem(task) {
+      const isEditing = task.id === editingId;
+      const li = el('li', 'task' + (task.done ? ' is-done' : ''));
+      li.dataset.id = task.id;
+
+      // Checkbox
+      const check = el('label', 'check');
+      const box = document.createElement('input');
+      box.type = 'checkbox';
+      box.className = 'task-check';
+      box.id = 'check-' + task.id;
+      box.checked = task.done;
+      box.setAttribute('aria-label', task.text);
+      check.append(box);
+
+      // Title (or edit box) + tag
+      const body = el('div', 'task-body');
+      if (isEditing) {
+        const input = el('input', 'edit-input');
+        input.type = 'text';
+        input.value = task.text;
+        input.maxLength = 200;
+        input.setAttribute('aria-label', 'Edit task. Press Enter to save or Escape to cancel.');
+        body.append(input);
+      } else {
+        body.append(el('p', 'task-title', task.text));
+      }
+
+      if (task.tag) {
+        const meta = el('p', 'task-meta');
+        const tag = el('span', 'tag');
+        const dot = el('span', 'tag-dot');
+        dot.dataset.tag = task.tag;
+        dot.setAttribute('aria-hidden', 'true');
+        tag.append(dot, el('span', 'sr-only', 'Tag: '), document.createTextNode(TAGS[task.tag]));
+        meta.append(tag);
+        body.append(meta);
+      }
+
+      // Buttons on the right
+      const actions = el('div', 'task-actions');
+      if (isEditing) {
+        const save = el('button', 'btn btn-primary btn-small', 'Save');
+        save.type = 'button';
+        save.dataset.action = 'save-edit';
+        actions.append(save);
+      } else {
+        const edit = el('button', 'icon-btn');
+        edit.type = 'button';
+        edit.dataset.action = 'edit';
+        edit.setAttribute('aria-label', 'Edit "' + task.text + '"');
+        edit.innerHTML = ICONS.edit;   // fixed icon markup, no user text
+
+        const remove = el('button', 'icon-btn');
+        remove.type = 'button';
+        remove.dataset.action = 'delete';
+        remove.setAttribute('aria-label', 'Delete "' + task.text + '"');
+        remove.innerHTML = ICONS.trash;
+
+        actions.append(edit, remove);
+      }
+
+      li.append(check, body, actions);
+      return li;
+    }
+
+    /* =========================================================
+       7. ADD-TASK FORM ("composer")
+       ========================================================= */
+    function setUpComposers() {
+      const template = document.getElementById('composer-template');
+
+      document.querySelectorAll('.column').forEach(column => {
+        const sectionId = column.dataset.section;
+        const form = template.content.firstElementChild.cloneNode(true);
+
+        // Give every field a unique id so its label points to it
+        form.querySelectorAll('[data-for]').forEach(label => {
+          const field = form.elements[label.dataset.for];
+          field.id = label.dataset.for + '-' + sectionId;
+          label.htmlFor = field.id;
+        });
+
+        const error = form.querySelector('.composer-error');
+        error.id = 'error-' + sectionId;
+        form.elements.text.setAttribute('aria-describedby', error.id);
+
+        // Tag chips
+        const picker = form.querySelector('.tag-picker');
+        Object.keys(TAGS).forEach(key => {
+          const chip = el('button', 'tag-chip');
+          chip.type = 'button';
+          chip.dataset.action = 'pick-tag';
+          chip.dataset.tag = key;
+          chip.setAttribute('aria-pressed', 'false');
+          const dot = el('span', 'tag-dot');
+          dot.dataset.tag = key;
+          dot.setAttribute('aria-hidden', 'true');
+          chip.append(dot, document.createTextNode(TAGS[key]));
+          picker.append(chip);
+        });
+
+        form.addEventListener('submit', event => {
+          event.preventDefault();
+          submitComposer(form);
+        });
+
+        column.querySelector('.composer-slot').append(form);
+      });
+    }
+
+    function openComposer(column) {
+      // Only one form open at a time
+      document.querySelectorAll('.column').forEach(other => {
+        if (other !== column) closeComposer(other, false);
+      });
+
+      const form = column.querySelector('.composer');
+      resetComposer(form);
+      form.elements.section.value = column.dataset.section;
+      form.hidden = false;
+      column.querySelector('.add-trigger').hidden = true;
+      form.elements.text.focus();
+    }
+
+    function closeComposer(column, returnFocus) {
+      const form = column.querySelector('.composer');
+      if (form.hidden) return;
+      form.hidden = true;
+      const trigger = column.querySelector('.add-trigger');
+      trigger.hidden = false;
+      if (returnFocus) trigger.focus();
+    }
+
+    function resetComposer(form) {
+      form.elements.text.value = '';
+      form.elements.text.removeAttribute('aria-invalid');
+      form.querySelector('.composer-error').hidden = true;
+      form.querySelectorAll('.tag-chip').forEach(chip => chip.setAttribute('aria-pressed', 'false'));
+    }
+
+    function pickTag(chip) {
+      const wasOn = chip.getAttribute('aria-pressed') === 'true';
+      chip.closest('.tag-picker').querySelectorAll('.tag-chip').forEach(c => c.setAttribute('aria-pressed', 'false'));
+      chip.setAttribute('aria-pressed', String(!wasOn));   // click again to remove the tag
+    }
+
+    function submitComposer(form) {
+      const input = form.elements.text;
+      const text = input.value.trim();
+
+      if (!text) {
+        input.setAttribute('aria-invalid', 'true');
+        form.querySelector('.composer-error').hidden = false;
+        input.focus();
+        return;
+      }
+
+      const section = form.elements.section.value;
+      const chosen = form.querySelector('.tag-chip[aria-pressed="true"]');
+      addTask(text, section, chosen ? chosen.dataset.tag : null);
+
+      // A new task isn't "done", so leave the Done filter so it's visible
+      if (filter === 'done') {
+        filter = 'all';
+        saveFilter();
+      }
+
+      render();
+      announce('Added "' + text + '" to ' + SECTIONS[section].name + '.');
+
+      // Keep the form open so you can add several tasks in a row
+      const keepSection = form.elements.section.value;
+      resetComposer(form);
+      form.elements.section.value = keepSection;
+      input.focus();
+    }
+
+    /* =========================================================
+       8. EDITING
+       ========================================================= */
+    function startEdit(id) {
+      editingId = id;
+      render();
+    }
+
+    function commitEdit(id, value, returnFocus) {
+      if (editingId !== id) return;        // already saved or cancelled
+      editingId = null;
+      const text = value.trim();
+      const task = findTask(id);
+      if (task && text && text !== task.text) {
+        updateTaskText(id, text);
+        announce('Task updated.');
+      }
+      render();
+      if (returnFocus) focusTaskControl(id, 'edit');
+    }
+
+    function cancelEdit(id) {
+      if (editingId !== id) return;
+      editingId = null;
+      render();
+      focusTaskControl(id, 'edit');
+    }
+
+    /* =========================================================
+       9. FOCUS HELPERS (keyboard users shouldn't get "lost")
+       ========================================================= */
+    function focusTaskControl(id, which) {
+      const li = document.querySelector('.task[data-id="' + id + '"]');
+      if (!li) return false;
+      const target = which === 'edit' ? li.querySelector('[data-action="edit"]') : li.querySelector('.task-check');
+      if (target) target.focus();
+      return Boolean(target);
+    }
+
+    /* =========================================================
+       10. EVENTS
+       One listener on the board handles every card, even ones
+       added later ("event delegation").
+       ========================================================= */
+    const board = document.getElementById('board');
+
+    board.addEventListener('click', event => {
+      const button = event.target.closest('[data-action]');
+      if (!button) return;
+
+      const column = button.closest('.column');
+      const li = button.closest('.task');
+      const id = li ? li.dataset.id : null;
+
+      switch (button.dataset.action) {
+        case 'open-composer':
+          openComposer(column);
+          break;
+        case 'cancel':
+          closeComposer(column, true);
+          break;
+        case 'pick-tag':
+          pickTag(button);
+          break;
+        case 'edit':
+          startEdit(id);
+          break;
+        case 'save-edit':
+          commitEdit(id, li.querySelector('.edit-input').value, true);
+          break;
+        case 'delete': {
+          const task = findTask(id);
+          const items = Array.from(column.querySelectorAll('.task'));
+          const index = items.indexOf(li);
+          deleteTask(id);
+          render();
+          announce('Deleted "' + (task ? task.text : 'task') + '".');
+          // Move focus to the next task, or the "Add task" button
+          const remaining = column.querySelectorAll('.task');
+          const next = remaining[Math.min(index, remaining.length - 1)];
+          if (next) focusTaskControl(next.dataset.id, 'check');
+          else column.querySelector('.add-trigger').focus();
+          break;
+        }
+      }
+    });
+
+    // Keep focus in the edit box when pressing Save with a mouse
+    board.addEventListener('pointerdown', event => {
+      if (event.target.closest('[data-action="save-edit"]')) event.preventDefault();
+    });
+
+    // Tick / untick
+    board.addEventListener('change', event => {
+      if (!event.target.classList.contains('task-check')) return;
+      const id = event.target.closest('.task').dataset.id;
+      const column = event.target.closest('.column');
+      toggleTask(id);
+      render();
+      if (!focusTaskControl(id, 'check')) column.querySelector('.add-trigger').focus();
+    });
+
+    // Double-click a title to edit it
+    board.addEventListener('dblclick', event => {
+      const title = event.target.closest('.task-title');
+      if (title) startEdit(title.closest('.task').dataset.id);
+    });
+
+    // Keyboard: Enter saves an edit, Escape cancels / closes the form
+    board.addEventListener('keydown', event => {
+      const editInput = event.target.closest('.edit-input');
+      if (editInput) {
+        const id = editInput.closest('.task').dataset.id;
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          commitEdit(id, editInput.value, true);
+        } else if (event.key === 'Escape') {
+          event.preventDefault();
+          cancelEdit(id);
+        }
+        return;
+      }
+
+      if (event.key === 'Escape' && event.target.closest('.composer')) {
+        closeComposer(event.target.closest('.column'), true);
+      }
+    });
+
+    // Clicking away from the edit box saves it
+    board.addEventListener('focusout', event => {
+      const editInput = event.target.closest('.edit-input');
+      if (!editInput) return;
+      const li = editInput.closest('.task');
+      if (li) commitEdit(li.dataset.id, editInput.value, false);
+    });
+
+    // Filter buttons
+    document.querySelector('.filters').addEventListener('click', event => {
+      const button = event.target.closest('[data-filter]');
+      if (!button) return;
+      filter = button.dataset.filter;
+      editingId = null;
+      saveFilter();
+      render();
+    });
+
+    /* =========================================================
+       11. START
+       ========================================================= */
+    document.getElementById('today-date').textContent =
+      new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date());
+
+    setUpComposers();
+    render();
+  })();
+  </script>
+</body>
+</html>
